@@ -1,1 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Azure Cost Estimation Tool</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #f0f4f8;
+    color: #1a1a2e;
+    min-height: 100vh;
+  }
+
+  /* ── Top nav ── */
+  .nav {
+    background: #0078d4;
+    padding: 0 2rem;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: 52px;
+    box-shadow: 0 2px 8px rgba(0,120,212,.3);
+  }
+  .nav-logo { font-size: 22px; }
+  .nav-title { color: #fff; font-size: 16px; font-weight: 600; letter-spacing: .3px; }
+  .nav-sub   { color: #bde0ff; font-size: 12px; margin-left: auto; }
+
+  /* ── Layout ── */
+  .page { max-width: 860px; margin: 2.5rem auto; padding: 0 1rem; }
+
+  /* ── Card ── */
+  .card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 2rem;
+    box-shadow: 0 2px 12px rgba(0,0,0,.07);
+    margin-bottom: 1.25rem;
+  }
+  .card-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #0078d4;
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* ── Upload zone ── */
+  .drop-zone {
+    border: 2px dashed #bcd4f0;
+    border-radius: 10px;
+    padding: 2.5rem 1rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all .2s;
+    background: #f7fbff;
+    position: relative;
+  }
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: #0078d4;
+    background: #eff6ff;
+  }
+  .drop-zone input[type=file] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%;
+  }
+  .drop-icon  { font-size: 40px; margin-bottom: 10px; }
+  .drop-main  { font-size: 15px; font-weight: 500; color: #333; margin-bottom: 4px; }
+  .drop-sub   { font-size: 13px; color: #888; }
+  .file-chosen { font-size: 13px; color: #0078d4; margin-top: 10px; font-weight: 500; }
+
+  /* ── Settings row ── */
+  .settings-row {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1.25rem;
+    flex-wrap: wrap;
+    align-items: flex-end;
+  }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 12px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: .5px; }
+  .field select, .field input {
+    padding: 8px 12px;
+    border: 1.5px solid #dde3ea;
+    border-radius: 7px;
+    font-size: 14px;
+    outline: none;
+    transition: border-color .15s;
+    background: #fff;
+  }
+  .field select:focus, .field input:focus { border-color: #0078d4; }
+
+  /* ── Button ── */
+  .btn {
+    padding: 10px 28px;
+    border-radius: 7px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all .15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .btn-primary {
+    background: #0078d4;
+    color: #fff;
+  }
+  .btn-primary:hover:not(:disabled) { background: #005ea2; }
+  .btn-primary:disabled { background: #aac8e8; cursor: not-allowed; }
+  .btn-success {
+    background: #107c10;
+    color: #fff;
+  }
+  .btn-success:hover { background: #0a5e0a; }
+
+  /* ── Progress ── */
+  .progress-wrap { display: none; margin-top: 1.5rem; }
+  .progress-label { font-size: 13px; font-weight: 600; color: #444; margin-bottom: 8px; display: flex; justify-content: space-between; }
+  .progress-bar-bg { background: #e8edf2; border-radius: 99px; height: 8px; overflow: hidden; }
+  .progress-bar    { background: linear-gradient(90deg,#0078d4,#50c4ff); height: 100%; border-radius: 99px; width: 0%; transition: width .4s ease; }
+  .progress-log {
+    margin-top: 12px;
+    background: #0d1117;
+    color: #7ee787;
+    font-family: 'Cascadia Code','Consolas',monospace;
+    font-size: 12px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+    line-height: 1.7;
+  }
+
+  /* ── Result banner ── */
+  .result-banner {
+    display: none;
+    background: #e6f4ea;
+    border: 1.5px solid #107c10;
+    border-radius: 10px;
+    padding: 1.25rem 1.5rem;
+    margin-top: 1.25rem;
+    align-items: center;
+    gap: 14px;
+  }
+  .result-banner.show { display: flex; }
+  .result-icon { font-size: 32px; }
+  .result-text h3 { font-size: 15px; color: #107c10; margin-bottom: 3px; }
+  .result-text p  { font-size: 13px; color: #555; }
+  .result-actions { margin-left: auto; display: flex; gap: 10px; }
+
+  /* ── Error banner ── */
+  .error-banner {
+    display: none;
+    background: #fde7e9;
+    border: 1.5px solid #d13438;
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    margin-top: 1.25rem;
+    font-size: 13px;
+    color: #a4262c;
+  }
+  .error-banner.show { display: block; }
+
+  /* ── Info cards ── */
+  .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap: 10px; }
+  .info-item {
+    background: #f7fbff;
+    border: 1px solid #dde8f5;
+    border-radius: 9px;
+    padding: 14px;
+    font-size: 13px;
+  }
+  .info-item .iico { font-size: 22px; margin-bottom: 6px; }
+  .info-item .ititle { font-weight: 600; color: #0078d4; margin-bottom: 3px; }
+  .info-item .idesc  { color: #666; line-height: 1.5; }
+
+  /* ── Steps card ── */
+  .steps { display: flex; flex-direction: column; gap: 10px; }
+  .step  { display: flex; gap: 12px; align-items: flex-start; }
+  .step-num {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: #0078d4; color: #fff;
+    font-size: 12px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .step-body { font-size: 13px; color: #444; line-height: 1.6; }
+  .step-body strong { color: #111; }
+
+  footer {
+    text-align: center;
+    font-size: 12px;
+    color: #999;
+    padding: 2rem 0;
+  }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <span class="nav-logo">☁</span>
+  <span class="nav-title">Azure Cost Estimation Tool</span>
+  <span class="nav-sub">Powered by Azure Retail Pricing API</span>
+</nav>
+
+<div class="page">
+
+  <!-- Upload card -->
+  <div class="card">
+    <div class="card-title">📂 Upload Azure Pricing Calculator Export</div>
+
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept=".xlsx">
+      <div class="drop-icon">📊</div>
+      <div class="drop-main">Drag & drop your Excel file here</div>
+      <div class="drop-sub">or click to browse — .xlsx files only</div>
+      <div class="file-chosen" id="fileChosen"></div>
+    </div>
+
+    <div class="settings-row">
+      <div class="field">
+        <label>Currency</label>
+        <select id="currency">
+          <option value="INR" selected>INR – Indian Rupee (₹)</option>
+          <option value="USD">USD – US Dollar ($)</option>
+          <option value="EUR">EUR – Euro (€)</option>
+          <option value="GBP">GBP – British Pound (£)</option>
+          <option value="AUD">AUD – Australian Dollar (A$)</option>
+          <option value="SGD">SGD – Singapore Dollar (S$)</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" id="convertBtn" disabled onclick="startConvert()">
+        ⚡ Generate Cost Estimation
+      </button>
+    </div>
+
+    <!-- Progress -->
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-label">
+        <span id="progressLabel">Processing…</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div class="progress-bar-bg"><div class="progress-bar" id="progressBar"></div></div>
+      <div class="progress-log" id="progressLog"></div>
+    </div>
+
+    <!-- Result -->
+    <div class="result-banner" id="resultBanner">
+      <div class="result-icon">✅</div>
+      <div class="result-text">
+        <h3>Workbook ready!</h3>
+        <p id="resultDesc">Your Cost Estimation workbook has been generated.</p>
+      </div>
+      <div class="result-actions">
+        <button class="btn btn-success" id="downloadBtn" onclick="downloadFile()">
+          📥 Download
+        </button>
+        <button class="btn btn-primary" onclick="resetForm()">🔄 New File</button>
+      </div>
+    </div>
+
+    <!-- Error -->
+    <div class="error-banner" id="errorBanner"></div>
+  </div>
+
+  <!-- What you get -->
+  <div class="card">
+    <div class="card-title">📋 What you get in the output workbook</div>
+    <div class="info-grid">
+      <div class="info-item">
+        <div class="iico">📊</div>
+        <div class="ititle">Summary Sheet</div>
+        <div class="idesc">All resources with PAYG, 1-Year RI, 3-Year RI monthly costs</div>
+      </div>
+      <div class="info-item">
+        <div class="iico">💻</div>
+        <div class="ititle">Virtual Machines</div>
+        <div class="idesc">Compute + Windows License split, RI savings per VM</div>
+      </div>
+      <div class="info-item">
+        <div class="iico">✅</div>
+        <div class="ititle">API Validated Pricing</div>
+        <div class="idesc">Live prices from Azure Retail Pricing API — not estimates</div>
+      </div>
+      <div class="info-item">
+        <div class="iico">💾</div>
+        <div class="ititle">Per-Resource Sheets</div>
+        <div class="idesc">Managed Disks, Backup, Storage, SQL, Networking &amp; more</div>
+      </div>
+      <div class="info-item">
+        <div class="iico">📉</div>
+        <div class="ititle">RI Savings %</div>
+        <div class="idesc">38% on 1-Year, 60% on 3-Year for most VM families</div>
+      </div>
+      <div class="info-item">
+        <div class="iico">🔢</div>
+        <div class="ititle">Both Input Formats</div>
+        <div class="idesc">Single-sheet export (Format A) and multi-sheet (Format B)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- How to use -->
+  <div class="card">
+    <div class="card-title">🚀 How to use</div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">Go to <strong>azure.microsoft.com/pricing/calculator</strong>, add all your Azure resources, then click <strong>Export → Download as Excel (.xlsx)</strong></div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">Upload the downloaded file above and choose your currency</div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">Click <strong>Generate Cost Estimation</strong> — the tool calls the Azure Retail Pricing API live to fetch real PAYG and RI prices</div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">Download your formatted <strong>Cost_Estimation.xlsx</strong> with separate sheets per resource type, compute/license breakdown, and savings %</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<footer>Azure Cost Estimation Tool &nbsp;·&nbsp; Powered by Azure Retail Pricing API &nbsp;·&nbsp; SRSTI Softwares</footer>
+
+<script>
+let currentJobId = null;
+let pollTimer    = null;
+let progress     = 0;
+
+// ── File input ──────────────────────────────────────────────────────────────
+const fileInput   = document.getElementById('fileInput');
+const dropZone    = document.getElementById('dropZone');
+const fileChosen  = document.getElementById('fileChosen');
+const convertBtn  = document.getElementById('convertBtn');
+
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) {
+    fileChosen.textContent = '✔ ' + fileInput.files[0].name;
+    convertBtn.disabled = false;
+  }
+});
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', ()  => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file && file.name.endsWith('.xlsx')) {
+    fileInput.files = e.dataTransfer.files;
+    fileChosen.textContent = '✔ ' + file.name;
+    convertBtn.disabled = false;
+  }
+});
+
+// ── Start conversion ────────────────────────────────────────────────────────
+function startConvert() {
+  const file = fileInput.files[0];
+  if (!file) return;
+
+  const currency = document.getElementById('currency').value;
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('currency', currency);
+
+  // Reset UI
+  document.getElementById('resultBanner').classList.remove('show');
+  document.getElementById('errorBanner').classList.remove('show');
+  document.getElementById('progressWrap').style.display = 'block';
+  document.getElementById('progressLog').textContent = '';
+  convertBtn.disabled = true;
+  setProgress(5, 'Uploading file…');
+
+  fetch('/upload', { method: 'POST', body: fd })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) throw new Error(data.error);
+      currentJobId = data.job_id;
+      setProgress(15, 'File uploaded — starting conversion…');
+      pollTimer = setInterval(pollStatus, 1500);
+    })
+    .catch(err => showError(err.message));
+}
+
+// ── Poll job status ─────────────────────────────────────────────────────────
+function pollStatus() {
+  if (!currentJobId) return;
+  fetch('/status/' + currentJobId)
+    .then(r => r.json())
+    .then(data => {
+      // Append new log lines
+      if (data.log && data.log.length) {
+        document.getElementById('progressLog').textContent = data.log.join('\n');
+        document.getElementById('progressLog').scrollTop = 9999;
+      }
+
+      if (data.status === 'running') {
+        progress = Math.min(progress + 6, 85);
+        setProgress(progress, 'Querying Azure Pricing API…');
+      } else if (data.status === 'done') {
+        clearInterval(pollTimer);
+        setProgress(100, 'Complete!');
+        setTimeout(showResult, 400);
+      } else if (data.status === 'error') {
+        clearInterval(pollTimer);
+        showError(data.error || 'Conversion failed');
+      }
+    })
+    .catch(() => {});
+}
+
+// ── UI helpers ──────────────────────────────────────────────────────────────
+function setProgress(pct, label) {
+  progress = pct;
+  document.getElementById('progressBar').style.width  = pct + '%';
+  document.getElementById('progressPct').textContent  = pct + '%';
+  document.getElementById('progressLabel').textContent = label;
+}
+
+function showResult() {
+  document.getElementById('resultBanner').classList.add('show');
+  document.getElementById('resultDesc').textContent =
+    'Cost_Estimation_' + currentJobId + '.xlsx is ready to download.';
+  document.getElementById('progressWrap').style.display = 'none';
+}
+
+function downloadFile() {
+  if (currentJobId) window.location.href = '/download/' + currentJobId;
+}
+
+function showError(msg) {
+  const el = document.getElementById('errorBanner');
+  el.textContent = '❌ ' + msg;
+  el.classList.add('show');
+  document.getElementById('progressWrap').style.display = 'none';
+  convertBtn.disabled = false;
+}
+
+function resetForm() {
+  currentJobId = null; progress = 0;
+  fileInput.value = '';
+  fileChosen.textContent = '';
+  convertBtn.disabled = true;
+  document.getElementById('resultBanner').classList.remove('show');
+  document.getElementById('errorBanner').classList.remove('show');
+  document.getElementById('progressWrap').style.display = 'none';
+  setProgress(0, '');
+}
+</script>
+</body>
+</html>
